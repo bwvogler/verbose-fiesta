@@ -1,5 +1,5 @@
 # verbose-fiesta
-
+https://bmcbioinformatics.biomedcentral.com/articles/10.1186/1471-2105-7-285
 Appendix A. Pseudo-code for codon optimization in Gene Designer
 FOR EACH A.A. sequence
 
