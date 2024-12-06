@@ -61,3 +61,16 @@ down = np.array(
     ],
     dtype=str,
 )
+
+
+def _is_mas(x):
+    if x == "MAS":
+        return True
+    if x == "SAM":
+        return True
+    return False
+
+
+# apply the function to each element of the array
+(np.vectorize(_is_mas)(across) & np.vectorize(_is_mas)(down)).sum()
+(np.vectorize(_is_mas)(diagonal_down) & np.vectorize(_is_mas)(diagonal_up)).sum()
