@@ -1,5 +1,6 @@
 import regex as re
 import numpy as np
+from numpy.lib.stride_tricks import sliding_window_view
 
 with open("aoc2024/data/day4.txt", encoding="utf-8") as f:
     data = np.array([list(line.strip()) for line in f.readlines()])
@@ -21,46 +22,23 @@ sum(
 )
 
 
-rows, cols = data.shape
+# Part 2
+# Get the sliding windows
+window_view_down = sliding_window_view(data, (3, 3))
+window_view_up = sliding_window_view(data[::-1], (3, 3))[::-1]
 
-# Diagonal from Top-Left to Bottom-Right
-diagonal_down = np.array(
-    [
-        [
-            "".join([data[i - 1, j - 1], data[i, j], data[i + 1, j + 1]])
-            for j in range(1, cols - 1)
-        ]
-        for i in range(1, rows - 1)
-    ],
-    dtype=str,
-)
 
-diagonal_up = np.array(
-    [
-        [
-            "".join([data[i - 1, j + 1], data[i, j], data[i + 1, j - 1]])
-            for j in range(1, cols - 1)
-        ]
-        for i in range(1, rows - 1)
-    ],
-    dtype=str,
-)
+# Function to get the diagonals
+def _get_diagonals(arr: np.ndarray) -> np.ndarray:
+    rows, cols, _, _ = arr.shape
+    return np.array(
+        [["".join(arr[i, j].diagonal()) for j in range(cols)] for i in range(rows)],
+        dtype=str,
+    )
 
-across = np.array(
-    [
-        ["".join(data[i, j - 1 : j + 2]) for j in range(1, cols - 1)]
-        for i in range(1, rows - 1)
-    ],
-    dtype=str,
-)
 
-down = np.array(
-    [
-        ["".join(data[i - 1 : i + 2, j].flatten()) for j in range(1, cols - 1)]
-        for i in range(1, rows - 1)
-    ],
-    dtype=str,
-)
+diag_up = _get_diagonals(window_view_up)
+diag_down = _get_diagonals(window_view_down)
 
 
 def _is_mas(x):
@@ -71,6 +49,7 @@ def _is_mas(x):
     return False
 
 
-# apply the function to each element of the array
-(np.vectorize(_is_mas)(across) & np.vectorize(_is_mas)(down)).sum()
-(np.vectorize(_is_mas)(diagonal_down) & np.vectorize(_is_mas)(diagonal_up)).sum()
+is_mas = np.vectorize(_is_mas)
+
+# Apply the function to each element of the array
+(is_mas(diag_down) & is_mas(diag_up)).sum()
