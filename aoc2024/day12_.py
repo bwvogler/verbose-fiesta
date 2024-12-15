@@ -5,8 +5,11 @@ class GardenRegion():
   def __init__(self, label: str, locations: set[tuple[int, int]])
     self.locations = locations
 
-  def is_adjoining(self, other_region: GardenRegion):
-    pass
+  def is_same(self, other_region: GardenRegion) -> bool:
+    if other_region.label != self.label:
+      return False
+    if any(
+      other_region.location == self.location + direction
 
   def add_locations(locations: list[tuple(int, int) | np.ndarray | GardenRegion]):
     pass
@@ -31,8 +34,7 @@ for region in garden:
   adjoining_regions = [
     other_region
     for other_region in garden
-    if other_region.label == region.label
-    and other_region.is_adjoining(region)
+    if other_region.is_same(region)
   ]
   region.add_locations(
 
