@@ -8,7 +8,7 @@ class GardenRegion():
   def is_adjoining(self, other_region: GardenRegion):
     pass
 
-  def add_location(location: tuple(int, int) | np.ndarray | GardenRegion):
+  def add_locations(locations: list[tuple(int, int) | np.ndarray | GardenRegion]):
     pass
 
   @property
@@ -26,4 +26,13 @@ class GardenRegion():
 garden = [
   GardenRegion(data[i, j] for i, j in list(np.ndindex(data.shape))
 ]
+
+for region in garden:
+  adjoining_regions = [
+    other_region
+    for other_region in garden
+    if other_region.label == region.label
+    and other_region.is_adjoining(region)
+  ]
+  region.add_locations(
 
