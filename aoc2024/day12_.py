@@ -1,3 +1,6 @@
+with open("aoc2024/data/day12.txt", encoding="utf-8") as f:
+  garden = np.array([list(line.strip()) for line in f.readlines()])
+
 class GardenRegion():
   def __init__(self, label: str, locations: np.ndarray)
     self.locations = locations
@@ -19,3 +22,4 @@ class GardenRegion():
       for direction in self._directions
       for location in self.locations
     )
+
