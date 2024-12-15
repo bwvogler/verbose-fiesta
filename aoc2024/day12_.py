@@ -9,7 +9,9 @@ class GardenRegion():
     if other_region.label != self.label:
       return False
     if any(
-      other_region.location == self.location + direction
+      other_region.location == tuple(np.add(self.location, direction))
+      for direction in self._directions
+    )
 
   def add_locations(locations: list[tuple(int, int) | np.ndarray | GardenRegion]):
     pass
