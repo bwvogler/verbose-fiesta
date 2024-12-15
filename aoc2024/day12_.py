@@ -5,6 +5,9 @@ class GardenRegion():
   def is_adjoining(self, other_region: GardenRegion):
     pass
 
+  def add_location(location: tuple(int, int) | np.ndarray | GardenRegion):
+    pass
+
   @property
   def area(self) -> int:
     return self.locations.shape[0]
