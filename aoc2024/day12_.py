@@ -2,19 +2,28 @@ with open("aoc2024/data/day12.txt", encoding="utf-8") as f:
   data = np.array([list(line.strip()) for line in f.readlines()])
 
 class GardenRegion():
-  def __init__(self, label: str, locations: set[tuple[int, int]])
+  def __init__(self, label: str, locations: set[np.ndarray])
     self.locations = locations
+
+  def _directions(self) -> list[np.ndarray]:
+    return [
+      np.array(x, y)
+      for x, y in [(1, 0), (0, -1), (-1,0),(0,1)]
+    ]
 
   def is_same(self, other_region: GardenRegion) -> bool:
     if other_region.label != self.label:
       return False
     if any(
-      other_region.location == tuple(np.add(self.location, direction))
+      other_region.location == self.location + direction
       for direction in self._directions
     )
 
-  def add_locations(locations: list[tuple(int, int) | np.ndarray | GardenRegion]):
-    pass
+  def merge(self, regions: GardenRegion | list[GardenRegion]):
+    if isinstance(regions, GardenRegion):
+      regions = [regions]
+    for region in regions:
+      self.locations.add(region.location)
 
   @property
   def area(self) -> int:
