@@ -43,9 +43,11 @@ def get_spaces(file_array: np.ndarray) -> np.ndarray:
     borders = np.where(np.diff(file_array == -1))[0] + 1
     if len(borders) % 2 == 0:
         return borders.reshape(-1, 2)
+    # if the last border is the end of the file, then add it as end of the last space
     return np.hstack([borders, np.array([file_array.size])]).reshape(-1, 2)
 
 
+# create a list of the start and end (not inclusive) of the files, ordered in reverse
 file_chunks = np.array(
     [
         (x[0], x[-1] + 1)
