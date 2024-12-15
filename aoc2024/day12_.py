@@ -1,8 +1,8 @@
 with open("aoc2024/data/day12.txt", encoding="utf-8") as f:
-  garden = np.array([list(line.strip()) for line in f.readlines()])
+  data = np.array([list(line.strip()) for line in f.readlines()])
 
 class GardenRegion():
-  def __init__(self, label: str, locations: np.ndarray)
+  def __init__(self, label: str, locations: set[tuple[int, int]])
     self.locations = locations
 
   def is_adjoining(self, other_region: GardenRegion):
@@ -22,4 +22,8 @@ class GardenRegion():
       for direction in self._directions
       for location in self.locations
     )
+
+garden = [
+  GardenRegion(data[i, j] for i, j in list(np.ndindex(data.shape))
+]
 
