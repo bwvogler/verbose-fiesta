@@ -7,6 +7,16 @@ import numpy as np
 
 def update_stone(stone: int) -> tuple[int, int]:
    if stone == 0:
-return (1, -1)
+      return (1, -1)
    if (string_len:=len(stone_string:=str(stone))) % 2 == 0:
-      return (int(stone_string[:string_len//2]), int(stone_string[
+      return (
+         int(stone_string[:string_len//2]),
+         int(stone_string[string_len//2:]),
+      )
+   return (2024*stone, -1)
+
+update_stones = np.vectorize(update_stone).flatten()
+
+for look in tqdm(range(25)):
+   stones = update_stones(stones)
+
