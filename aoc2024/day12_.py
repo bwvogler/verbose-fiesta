@@ -41,11 +41,11 @@ garden = [
   GardenRegion(data[i, j] for i, j in list(np.ndindex(data.shape))
 ]
 
-for region in garden:
-  adjoining_regions = [
+while any(same_regionsregion.is_same:
+  same_regions = [
     other_region
     for other_region in garden
     if other_region.is_same(region)
   ]
-  region.add_locations(
+  region.merge(same_regions)
 
