@@ -3,12 +3,16 @@ Button B: X+65, Y+17
 Prize: X=18133, Y=4639
 """
 
-a = (11, 73)
-b = (65, 17)
-p = (18133, 4639)
+import numpy as np
+
+a = np.array((11, 73))
+b = np.array((65, 17))
+p = np.array((18133, 4639))
+hunderd = np.array([(100)])
 [
     3 * a_count + b_count
-    for a_count in range((p // b).min())
+    # tuple(a_count * a + b_count * b)
+    for a_count in range(np.hstack([(p // b), hunderd]).min())
     for b_count in range((p // a).min())
-    if a_count * a + b_count * b == p
+    if tuple(a_count * a + b_count * b) == tuple(p)
 ]
