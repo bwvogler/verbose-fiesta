@@ -19,21 +19,35 @@ data = [
     for block in blocks
 ]
 
-hunderd = np.array([(100)])
+
+def solution(a, b, prize) -> int | None:
+    x2 = (a[0] * prize[1] - a[1] * prize[0]) / (a[0] * b[1] - a[1] * b[0])
+    x1 = (prize[0] - b[0] * x2) / a[0]
+    if x1.is_integer() and x2.is_integer():
+        if x1 >= 0 and x2 >= 0:
+            return int(3 * x1 + x2)
+    return None
+
+
 results = [
-    min(
-        (
-            3 * a_count + b_count
-            # tuple(a_count * a + b_count * b)
-            for a_count in range(
-                np.hstack([(machine["Prize"] // machine["Button A"]), hunderd]).min()
-            )
-            for b_count in range((machine["Prize"] // machine["Button B"]).min())
-            if tuple(a_count * machine["Button A"] + b_count * machine["Button B"])
-            == tuple(machine["Prize"])
-        ),
-        default=None,
-    )
+    solution(machine["Button A"], machine["Button B"], machine["Prize"])
+    for machine in data
+]
+sum(result for result in results if result is not None)
+
+# Part 2
+
+data = [
+    {
+        key: (value if key != "Prize" else value + 10000000000000)
+        for key, value in machine.items()
+    }
+    for machine in data
+]
+
+
+results = [
+    solution(machine["Button A"], machine["Button B"], machine["Prize"])
     for machine in data
 ]
 sum(result for result in results if result is not None)
