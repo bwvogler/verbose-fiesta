@@ -4,18 +4,19 @@ import pandas as pd
 import numpy as np
 
 
-CAL_COLUMNS = [3, 7, 11]
+# CAL_COLUMNS = [3, 4, 5]
+CAL_COLUMNS = [6, 7, 8]
 HIGH_STANDARD = 180
 STANDARD_DILUTION = 1.5
 
 lunatic_parser = LunaticParser()
 parsed_data = lunatic_parser.parse(
     # "lunatic/data/2024-12-13_143852_401155_LUNA_2024-12-13_MicroBCA.xlsx"
-    # "lunatic/data/2024-12-17_164941_401155_LUNA_2024-12-17_MicroBCA_left.xlsx"
+    "lunatic/data/2024-12-17_164941_401155_LUNA_2024-12-17_MicroBCA_left.xlsx"
     # "lunatic/data/2024-12-17_170553_401155_LUNA_2024-12-17_MicroBCA_right.xlsx"
     # "lunatic/data/2025-01-15_144936_401155_LUNA_uBCA.xlsx"
     # "lunatic/data/2025-01-15_161155_401155_LUNA_uBCA.xlsx"
-    "lunatic/data/2025-01-21_112225_401155_LUNA.xlsx"
+    # "lunatic/data/2025-01-21_112225_401155_LUNA.xlsx"
 )
 data = unpack_annotations(
     pd.concat([pd.DataFrame(plate.wells) for plate in parsed_data.plates])
@@ -23,15 +24,13 @@ data = unpack_annotations(
 
 
 analyzed_data = data.assign(
-    row=lambda x: x["Plate Position"].apply(lambda x: ord(x[0]) - 65),
-    col=lambda x: x["Plate Position"].apply(lambda x: int(x[1:]) - 1),
     # mean of columns A555-569
     mean_560=lambda x: x.loc[:, "555":"569"].mean(axis=1),
     mean_655=lambda x: x.loc[:, "642":"664"].mean(axis=1),
     difference=lambda x: x["mean_560"] - x["mean_655"],
 )
 
-calibration_data = analyzed_data[analyzed_data["col"].isin(CAL_COLUMNS)].assign(
+calibration_data = analyzed_data[analyzed_data["column"].isin(CAL_COLUMNS)].assign(
     conc=lambda x: x["row"].apply(lambda x: HIGH_STANDARD * STANDARD_DILUTION ** (-x))
 )
 calibration_data.iloc[calibration_data["row"] == max(calibration_data["row"]), -1] = 0.0
@@ -49,4 +48,4 @@ analyzed_data = analyzed_data.assign(
     calculated_conc=lambda x: (x["difference"] - intercept) / slope
 )
 
-analyzed_data.to_csv("lunatic/data/GOLDBTX_sizing.csv", index=False)
+analyzed_data.to_csv("lunatic/data/LEFT.csv", index=False)

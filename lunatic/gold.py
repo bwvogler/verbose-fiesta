@@ -10,10 +10,10 @@ lunatic_parser = LunaticParser()
 parsed_data = lunatic_parser.parse(
     # "lunatic/data/2024-12-13_143852_401155_LUNA_2024-12-13_MicroBCA.xlsx"
     # "lunatic/data/2024-12-17_164941_401155_LUNA_2024-12-17_MicroBCA_left.xlsx"
-    # "lunatic/data/2024-12-17_170553_401155_LUNA_2024-12-17_MicroBCA_right.xlsx"
+    "lunatic/data/2024-12-17_170553_401155_LUNA_2024-12-17_MicroBCA_right.xlsx"
     # "lunatic/data/2025-01-15_144936_401155_LUNA_uBCA.xlsx"
     # "lunatic/data/2025-01-15_161155_401155_LUNA_uBCA.xlsx"
-    "lunatic/data/2025-01-21_112225_401155_LUNA.xlsx"
+    # "lunatic/data/2025-01-21_112225_401155_LUNA.xlsx"
 )
 
 
@@ -25,13 +25,14 @@ lunatic_data = unpack_annotations(
 platemap = Platemap.from_quorra("G0033171")
 platemap_data = unpack_annotations(pd.DataFrame(platemap.well_records))
 
-data = pd.merge(
-    lunatic_data,
-    platemap_data,
-    left_on=["row", "column"],
-    right_on=["row", "column"],
-    how="inner",
-)
+data = lunatic_data
+# data = pd.merge(
+#     lunatic_data,
+#     platemap_data,
+#     left_on=["row", "column"],
+#     right_on=["row", "column"],
+#     how="inner",
+# )
 
 # add mean of columns A555-569 and A642-664
 data = data.assign(
@@ -58,7 +59,7 @@ analyzed_data = data.assign(
     concentration=lambda x: (x["difference"] - intercept) / slope
 )
 
-# analyzed_data.to_csv("lunatic/data/GOLDBTX_sizing.csv", index=False)
+analyzed_data.to_csv("lunatic/data/RIGHT.csv", index=False)
 
 for well_data in analyzed_data.itertuples():
     platemap._wells[WellPosition(well_data.row, well_data.column)]["concentration"] = well_data.concentration
