@@ -1,6 +1,18 @@
 import seaborn as sns
 import matplotlib.pyplot as plt
 
+PALETTE = [
+    "#51A4AF",  # Medium Teal
+    "#71257D",  # Dark Purple
+    "#F8AE35",  # Medium Orange
+    "#125F69",  # Dark Teal
+    "#D36DB6",  # Medium Purple
+    "#DD8411",  # Dark Orange
+    "#98D6D7",  # Light Teal
+    "#F9B7E7",  # Light Purple
+    "#FBCC7E",  # Light Orange
+]
+
 
 def get_figure_size(location: str = "side", exclude_title: bool = False) -> tuple:
     """
@@ -25,18 +37,8 @@ def get_figure_size(location: str = "side", exclude_title: bool = False) -> tupl
 
 def setup_seaborn_theme(location: str = "side", exclude_title: bool = False):
     """Set up standard Seaborn theme for figures with predefined sizes."""
-    palette = [
-        "#51A4AF",  # Medium Teal
-        "#71257D",  # Dark Purple
-        "#F8AE35",  # Medium Orange
-        "#125F69",  # Dark Teal
-        "#D36DB6",  # Medium Purple
-        "#DD8411",  # Dark Orange
-        "#98D6D7",  # Light Teal
-        "#F9B7E7",  # Light Purple
-        "#FBCC7E",  # Light Orange
-    ]
-    sns.set_theme(style="white", palette=palette)
+
+    sns.set_theme(style="white", palette=PALETTE)
     # make the background of the figure transparent, but the axes white
     plt.rcParams["figure.facecolor"] = "none"
     plt.rcParams["axes.facecolor"] = "white"
