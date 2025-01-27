@@ -27,7 +27,9 @@ parsed_data = {
 
 lunatic_data = {
     plate_id: unpack_annotations(
-        pd.concat([pd.DataFrame(plate.wells) for plate in plate_data.plates])
+        pd.concat(
+            [pd.DataFrame(plate.wells) for plate in plate_data.plates]
+        )  # Note: there is only ever one plate
     )
     for plate_id, plate_data in parsed_data.items()
 }
