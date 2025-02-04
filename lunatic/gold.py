@@ -26,7 +26,7 @@ parsed_data = {
     plate_id: lunatic_parser.parse(file_path)
     for plate_id, file_path in file_plate_pairings.items()
 }
-parsed_data["G0033458"].plates[0].wells
+# parsed_data["G0033458"].plates[0].wells  # for testing
 
 
 lunatic_data = {
