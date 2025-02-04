@@ -1,5 +1,6 @@
 import numpy as np
 import pandas as pd
+import matplotlib.pyplot as plt
 
 from pyquorra.platemap import PlatemapList, WellPosition
 
@@ -14,7 +15,9 @@ file_plate_pairings = {
     # "lunatic/data/2025-01-15_144936_401155_LUNA_uBCA.xlsx"
     # "lunatic/data/2025-01-15_161155_401155_LUNA_uBCA.xlsx"
     # "G0033171": "lunatic/data/2025-01-21_112225_401155_LUNA.xlsx",
-    "G0033294": "lunatic/data/2025-01-24_171715_401155_LUNA_2025-01-24_Micro_BCA.xlsx",
+    # "G0033294": "lunatic/data/2025-01-24_171715_401155_LUNA_2025-01-24_Micro_BCA.xlsx",
+    # "G0033355": "lunatic/data/2025-01-28_162443_401155_LUNA_2025-01-28_Micro_BCA.xlsx",
+    "G0033458": "lunatic/data/2025-01-30_124501_401155_LUNA.xlsx",
 }
 
 
@@ -23,6 +26,7 @@ parsed_data = {
     plate_id: lunatic_parser.parse(file_path)
     for plate_id, file_path in file_plate_pairings.items()
 }
+parsed_data["G0033458"].plates[0].wells
 
 
 lunatic_data = {
@@ -73,7 +77,7 @@ def get_limit_of_quantitation(
     return blanks[signal_column].mean() + 10 * blanks[signal_column].std()
 
 
-calibration_data = data[data["control"] == "standard"]
+calibration_data = data[data["control"].isin(["standard", "blank"])]
 limit_of_quantitation_signal = get_limit_of_quantitation(calibration_data)
 
 
@@ -121,7 +125,8 @@ plt.savefig("lunatic/data/calibration.png")
 
 analyzed_data = data.assign(
     calculated_conc=lambda x: np.where(
-        x["difference"] >= limit_of_quantitation_signal,
+        True,
+        # x["difference"] >= limit_of_quantitation_signal,
         (x["difference"] - intercept) / slope,
         np.nan,
     )
@@ -129,9 +134,11 @@ analyzed_data = data.assign(
 
 # analyzed_data.to_csv("lunatic/data/RIGHT.csv", index=False)
 
-for well_data in analyzed_data.itertuples():
-    platemap._wells[WellPosition(well_data.row, well_data.column)][
-        "concentration"
-    ] = well_data.concentration
+for platemap in platemaps:
+    for well_data in analyzed_data.itertuples():
+        platemap._wells[WellPosition(well_data.row, well_data.column)][
+            "concentration"
+        ] = well_data.calculated_conc
 
 record = platemap.register()
+platemap

@@ -1,4 +1,4 @@
-from typing import BinaryIO, Union
+from typing import BinaryIO, Union, Callable
 from enum import Enum
 from abc import ABC, abstractmethod
 import re
@@ -160,43 +160,134 @@ class LunaticApplications(Enum):
     RAW_ABSORBANCE = RawAbsorbance
 
 
-def find_row_starting_with(sheet, value):
-    """
-    Finds the first row in the given sheet that starts with the specified value.
-    Args:
-        sheet (openpyxl.worksheet.worksheet.Worksheet): The worksheet to search through.
-        value (str): The value to search for in the first cell of each row.
-    Returns:
-        int: The row number of the first row that starts with the specified value.
-    Raises:
-        StopIteration: If no row starts with the specified value.
-    """
+class ExcelParser(BaseParser):
+    "All the Excel stuff"
+    _well_column: str | None = None
+    _well_string_to_row: Callable[[str], int] = lambda x: ord(x[0]) - 65
+    _well_string_to_col: Callable[[str], int] = lambda x: int(x[1:]) - 1
 
-    return next(row[0].row for row in sheet.iter_rows() if row[0].value == value)
+    def __init_subclass__(cls, **kwargs):
+        super().__init_subclass__(**kwargs)
+
+        if cls._well_column is None:
+            raise TypeError(
+                f"Class variable 'well_column' must be set in {cls.__name__}"
+            )
+
+        if not isinstance(cls._well_string_to_row, staticmethod):
+            cls._well_string_to_row = staticmethod(cls._well_string_to_row)
+
+        if not isinstance(cls._well_string_to_col, staticmethod):
+            cls._well_string_to_col = staticmethod(cls._well_string_to_col)
+
+    @staticmethod
+    def find_row_starting_with(sheet, value):
+        """
+        Finds the first row in the given sheet that starts with the specified value.
+        Args:
+            sheet (openpyxl.worksheet.worksheet.Worksheet): The worksheet to search through.
+            value (str): The value to search for in the first cell of each row.
+        Returns:
+            int: The row number of the first row that starts with the specified value.
+        Raises:
+            StopIteration: If no row starts with the specified value.
+        """
+
+        return next(row[0].row for row in sheet.iter_rows() if row[0].value == value)
+
+    @staticmethod
+    def find_next_empty_row(sheet, start_row: int = 1):
+        """
+        Finds the next empty row in an Excel sheet starting from a specified row.
+
+        Args:
+            sheet: The Excel sheet object to search through.
+            start_row (int, optional): The row number to start searching from. Defaults to 1.
+
+        Returns:
+            int: The row number of the next empty row.
+
+        Raises:
+            StopIteration: If no empty row is found.
+        """
+        return next(
+            row[0].row
+            for row in sheet.iter_rows(min_row=start_row)
+            if all(cell.value is None for cell in row)
+        )
+
+    def _metadata_from_cell_range(self, sheet, start_row, end_row, start_col, end_col):
+        """
+        Extracts metadata from a range of cells in an Excel sheet.
+
+        Args:
+            sheet: The Excel sheet object to extract metadata from.
+            start_row (int): The starting row number of the cell range.
+            end_row (int): The ending row number of the cell range.
+            start_col (int): The starting column number of the cell range.
+            end_col (int): The ending column number of the cell range.
+
+        Returns:
+            dict: A dictionary containing the extracted metadata.
+        """
+        metadata = {}
+        for row in sheet.iter_rows(
+            min_row=start_row, max_row=end_row, min_col=start_col, max_col=end_col
+        ):
+            for cell in row:
+                if cell.value is not None:
+                    metadata[cell.value] = cell.offset(column=1).value
+                    # advance to the next row
+                    break
+        return metadata
+
+    def _well_df_from_cell_range(
+        self,
+        sheet,
+        start_row,
+        end_row,
+        start_col,
+        headers: list[str] | None = None,
+    ):
+        """
+        Extracts well data from a range of cells in an Excel sheet.
+
+        Args:
+            sheet: The Excel sheet object to extract well data from.
+            start_row (int): The starting row number of the cell range.
+            end_row (int): The ending row number of the cell range.
+            start_col (int): The starting column number of the cell range.
+            end_col (int): The ending column number of the cell range.
+
+        Returns:
+            pd.DataFrame: A DataFrame containing the extracted well data.
+        """
+        if headers is None:
+            headers = [cell.value for cell in sheet[start_row]]
+        well_df = pd.DataFrame(
+            sheet.iter_rows(
+                min_row=start_row + 1,
+                max_row=end_row,
+                min_col=start_col,
+                max_col=start_col + len(headers),
+                values_only=True,
+            ),
+            columns=headers,
+        )
+        if "row" not in well_df.columns:
+            well_df["row"] = None
+        well_df.loc[:, "row"] = well_df[self._well_column].apply(
+            self._well_string_to_row
+        )
+        if "col" not in well_df.columns:
+            well_df["col"] = None
+        well_df.loc[:, "col"] = well_df[self._well_column].apply(
+            self._well_string_to_col
+        )
+        return well_df
 
 
-def find_next_empty_row(sheet, start_row: int = 1):
-    """
-    Finds the next empty row in an Excel sheet starting from a specified row.
-
-    Args:
-        sheet: The Excel sheet object to search through.
-        start_row (int, optional): The row number to start searching from. Defaults to 1.
-
-    Returns:
-        int: The row number of the next empty row.
-
-    Raises:
-        StopIteration: If no empty row is found.
-    """
-    return next(
-        row[0].row
-        for row in sheet.iter_rows(min_row=start_row)
-        if all(cell.value is None for cell in row)
-    )
-
-
-class LunaticParser(BaseParser):
+class LunaticParser(ExcelParser):
     """
     LunaticParser is a parser class that extends the BaseParser to parse data from an Excel file.
     Methods
@@ -218,20 +309,18 @@ class LunaticParser(BaseParser):
             If there is an issue with reading the Excel file or finding the required data.
     """
 
+    _well_column = "Plate Position"
+
     def parse(self, file: Union[str, BinaryIO]) -> ParsedData:
         try:
             sheet = get_first_xlsx_worksheet(file)
         except ValueError as e:
             raise ValueError(e) from e
 
-        info_row = find_row_starting_with(sheet, "Info")
-        table_row = find_row_starting_with(sheet, "Table")
-        metadata = dict(
-            (cell[0].value, cell[1].value)
-            for cell in sheet.iter_rows(
-                min_row=info_row + 1, max_row=table_row - 1, max_col=2
-            )
-            if cell[0].value and cell[1].value
+        info_row = self.find_row_starting_with(sheet, "Info")
+        table_row = self.find_row_starting_with(sheet, "Table")
+        metadata = self._metadata_from_cell_range(
+            sheet, info_row + 1, table_row - 1, 0, 2
         )
         headers = [cell.value.replace("\n", " ") for cell in sheet[table_row + 1]]
         if application_match := re.match(
@@ -256,14 +345,8 @@ class LunaticParser(BaseParser):
             )
             for header in headers
         ]
-        plate_df = pd.DataFrame(
-            sheet.iter_rows(
-                min_row=table_row + 2, max_row=sheet.max_row, values_only=True
-            ),
-            columns=headers,
-        ).assign(
-            row=lambda x: x["Plate Position"].apply(lambda x: ord(x[0]) - 65),
-            col=lambda x: x["Plate Position"].apply(lambda x: int(x[1:]) - 1),
+        plate_df = self._well_df_from_cell_range(
+            sheet, table_row + 1, sheet.max_row, 0, headers=headers
         )
         plates = [
             Plate(
