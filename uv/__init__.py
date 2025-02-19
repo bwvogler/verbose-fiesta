@@ -261,8 +261,24 @@ class SynergyParser(ExcelParser):
                     values_only=True,
                 )
             )
+            .dropna(how="all")
+            .dropna(how="all", axis=1)
+            .set_index(0)
             for i, (start_row, table_name) in enumerate(section_starts)
             if table_name != "Software Version"
+        }
+        # TODO: ensure that the tables are oriented with wells as rows
+        table_indices = [
+            (table_name, table.index)
+            for table_name, table in tables.items()
+            if any(well_name in table.index for well_name in ["A1", "A01"])
+        ]
+        well_location = "A1"
+        kinetics = {
+            table_name: tables[table_name]
+            .loc[[table_index[0], well_location], :]
+            .values
+            for table_name, table_index in table_indices
         }
 
         list(tables.items())[-5]
@@ -276,16 +292,13 @@ class SynergyParser(ExcelParser):
                         column=well["col"],
                         sample=well["Sample name"],
                         annotations={
-                            header: (None if well[header] == "N/A" else well[header])
-                            for header in headers
-                            if header
-                            not in [
-                                "Plate ID",
-                                "Sample name",
-                                "Plate Position",
-                                "row",
-                                "col",
-                            ]
+                            # return a list of tuples with the (first row value, row with matching )
+                            table_name: list(
+                                zip(
+                                    table.columns,
+                                    row,
+                                )
+                            )
                         },
                     )
                     for _, well in plate_wells.iterrows()
