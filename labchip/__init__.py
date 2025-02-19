@@ -1,8 +1,8 @@
-# parse the file in "lunatic/data/2025-01-15_161155_401155_LUNA.bin"
+"parse a gxii file"
 import re
 import string
 
-with open("lunatic/data/2025-01-15_161155_401155_LUNA.bin", "rb") as f:
+with open("labchip/data/Gold Test.gxd", "rb") as f:
     data = f.read()
 lines = [line.strip(b"\x00") for line in data.splitlines()]
 chunks = [re.split(b"\x00+", line) for line in lines]
@@ -21,14 +21,7 @@ def parse_chunk(chunk: bytes, toint: bool = False):
         return int.from_bytes(chunk)
     return chunk
 
+
 def parse_single(chunklet: str):
     pattern = r"(?P<attribute_string>.+) = \"(?P<value_size>[0-9]+)?(?P<unit>[A-Z]+)?(?P<status>[A-Z]+)?"
     match_obj = re.match(r"(P?)", chunklet)
-
-parsed = [[parse_chunk(chunk, toint=True) for chunk in chunkset] for chunkset in chunks]
-[line for line in parsed if len(line) == 1]
-line_lengths = [len(line) for line in parsed]
-#plot histogram of line lengths
-import matplotlib.pyplot as plt
-plt.hist(line_lengths, bins=range(0, 50))
-plt.show()

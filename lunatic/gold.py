@@ -17,7 +17,12 @@ file_plate_pairings = {
     # "G0033171": "lunatic/data/2025-01-21_112225_401155_LUNA.xlsx",
     # "G0033294": "lunatic/data/2025-01-24_171715_401155_LUNA_2025-01-24_Micro_BCA.xlsx",
     # "G0033355": "lunatic/data/2025-01-28_162443_401155_LUNA_2025-01-28_Micro_BCA.xlsx",
-    "G0033458": "lunatic/data/2025-01-30_124501_401155_LUNA.xlsx",
+    # "G0033458": "lunatic/data/2025-01-30_124501_401155_LUNA.xlsx",
+    # "G0033887": "lunatic/data/2025-02-12_173500_401027_LUNA_2025-02-12_Micro_BCA_left.xlsx",  # The first plate
+    # "G0033883": "lunatic/data/2025-02-12_174629_401027_LUNA_2025-02-12_Micro_BCA_right.xlsx",  # The second plate
+    "G0033966": "lunatic/data/2025-02-18_162550_401155_LUNA_Gold_Gen1_Batch1_Plate1.xlsx",  # The first plate
+    "G0033967": "lunatic/data/2025-02-18_164225_401155_LUNA_Gold_Gen1_Batch1_Plate2.xlsx",  # The second plate
+    "G0033968": "lunatic/data/2025-02-18_165551_401155_LUNA_Gold_Gen1_Batch1_Plate3.xlsx",  # The third plate
 }
 
 
@@ -111,16 +116,31 @@ limit_of_quantitation = (limit_of_quantitation_signal - intercept) / slope
 axes = (
     calibration_data.assign(calibration=lambda x: x["concentration"])
     .sort_values("concentration")
-    .plot(x="concentration", y="calibration", kind="line", linestyle="--", c="black")
+    .plot(
+        x="concentration",
+        y="calibration",
+        kind="line",
+        linestyle="--",
+        c="black",
+        label="Calibration",
+    )
 )
 # add a horizontal line at the limit of detection
-axes.axhline(limit_of_quantitation, linestyle="--", c="red", label="LOQ")
+axes.axhline(limit_of_quantitation, linestyle="--", c="red", label="LoQ")
 
 for i, (platemap_id, plate_data) in enumerate(calibration_data.groupby("platemap")):
     plate_data.plot(
-        x="concentration", y="calculated_conc", kind="scatter", c=PALETTE[i], ax=axes
+        x="concentration",
+        y="calculated_conc",
+        kind="scatter",
+        c=PALETTE[i],
+        ax=axes,
+        label=platemap_id,
     )
-plt.savefig("lunatic/data/calibration.png")
+axes.set_xlabel("Concentration (ug/mL)")
+axes.set_ylabel("Calculated Concentration (ug/mL)")
+plt.legend()
+plt.savefig("lunatic/data/calibration_gen1_1.png")
 
 
 analyzed_data = data.assign(
@@ -135,10 +155,16 @@ analyzed_data = data.assign(
 # analyzed_data.to_csv("lunatic/data/RIGHT.csv", index=False)
 
 for platemap in platemaps:
-    for well_data in analyzed_data.itertuples():
+    this_platemap_analyzed_data = analyzed_data[
+        analyzed_data["platemap"] == platemap.id
+    ]
+    for well_data in this_platemap_analyzed_data.itertuples():
         platemap._wells[WellPosition(well_data.row, well_data.column)][
             "concentration"
         ] = well_data.calculated_conc
 
-record = platemap.register()
+new_records = []
+for platemap in platemaps:
+    new_records.extend(platemap._update_well_records())
 platemap
+[platemap.id for platemap in platemaps]
