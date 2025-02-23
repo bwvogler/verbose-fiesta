@@ -405,7 +405,9 @@ class SynergyParser(ExcelParser):
                 sample=None,
                 annotations=well_data.pivot(
                     index="time", columns="measurement", values="value"
-                ).to_dict(orient="list"),
+                )
+                .reset_index()
+                .to_dict(orient="list"),
             )
             for well, well_data in long_data.groupby("well")
             if _is_well(well)
