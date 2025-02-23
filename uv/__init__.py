@@ -1,27 +1,19 @@
 "open the serum uv data"
 
-from typing import BinaryIO, Union, Callable
+from typing import BinaryIO, Union, Callable, Dict, Optional
 from enum import Enum
 from abc import ABC, abstractmethod
 import re
 
+
+from openpyxl import load_workbook  # type: ignore
+from openpyxl.workbook import Workbook
+from openpyxl.worksheet.worksheet import Worksheet
+
 from boxy.models import ParsedData, Plate, Well  # noqa
 from boxy.base_parser import BaseParser
-from boxy.utils import get_first_xlsx_worksheet
 
 import pandas as pd
-
-
-def unpack_annotations(
-    df: pd.DataFrame, annotations_column: str = "annotations"
-) -> pd.DataFrame:
-    return pd.concat(
-        [
-            df.drop(columns=[annotations_column]),
-            pd.json_normalize(df[annotations_column]),
-        ],
-        axis=1,
-    )
 
 
 class SynergyApplication(ABC):
@@ -136,7 +128,8 @@ class ExcelParser(BaseParser):
             if all(cell.value is None for cell in row)
         )
 
-    def _metadata_from_cell_range(self, sheet, start_row, end_row, start_col, end_col):
+    @staticmethod
+    def _metadata_from_cell_range(sheet, start_row, end_row, start_col, end_col):
         """
         Extracts metadata from a range of cells in an Excel sheet.
 
@@ -206,6 +199,107 @@ class ExcelParser(BaseParser):
         )
         return well_df
 
+    @staticmethod
+    def _get_xlsx_workbook(file: Union[str, BinaryIO]) -> Workbook:
+        """
+        Opens and Excel xlsx file and returns the workbook for the spreadsheet
+        :param file: file path string, or bytes-like file object
+        :return workbook: openpyxl Workbook object
+        """
+
+        workbook = load_workbook(file)
+        return workbook
+
+    @staticmethod
+    def _get_first_xlsx_worksheet(
+        file: Union[str, BinaryIO], sheet_name: Optional[str] = None
+    ) -> Worksheet:
+        """
+        Opens an Excel xlsx file and returns the first worksheet
+        :param file: file path string, or bytes-like file object
+        :param sheet_name: name of sheet to return
+        :return sheet: openpyxl Worksheet object for first sheet in xlsx
+        """
+
+        workbook = load_workbook(file)
+        if sheet_name is None:
+            sheet = workbook.active
+        else:
+            if sheet_name in workbook.sheetnames:
+                sheet = workbook[sheet_name]
+            else:
+                raise ValueError(f"Cannot find {sheet_name} in the file")
+        return sheet
+
+
+def _is_well(name: str) -> bool:
+    """
+    Check if a name is a well name.
+    Args:
+        name (str): The name to check.
+
+    Returns:
+        bool: True if the name is a well name, False otherwise.
+    """
+    if not isinstance(name, str):
+        return False
+    if re.match(r"[A-Z]{1,2}\d{1,2}", name) is not None:
+        return True
+    return False
+
+
+def _has_wells(names: list, cutoff: float = 0.5) -> bool:
+    """
+    Check if a list of names contains well names.
+    Args:
+        names (list): A list of names to check.
+        cutoff (float, optional): The minimum proportion of well names required. Defaults to 0.5.
+
+    Returns:
+        bool: True if the list contains well names, False otherwise.
+    """
+    wells = [name for name in names if _is_well(name)]
+    return (len(wells) / len(names)) > cutoff
+
+
+def _create_well_table(
+    table: pd.DataFrame, index_name: str | None = None
+) -> pd.DataFrame:
+    """
+    Create a well table from a DataFrame. A well table has wells as columns and time or wavelength as the index.
+    Args:
+        table (pd.DataFrame): The input DataFrame.
+    Returns:
+        pd.DataFrame: The well table with wells as columns and time or wavelength as the index.
+    """
+    if not isinstance(table, pd.DataFrame):
+        raise TypeError("table must be a pandas DataFrame")
+    if table.empty:
+        raise ValueError("table is empty")
+    # check if the first row contains well names
+    if _has_wells(table.iloc[0], 0.5):
+        table = pd.DataFrame(data=table.values[1:, :], columns=table.values[0, :])
+    elif _has_wells(table.iloc[:, 0], 0.5):
+        table = pd.DataFrame(data=table.values[:, 1:].T, columns=table.values[:, 0])
+    else:
+        raise ValueError("Table does not contain well names")
+    if index_name is not None:
+        table.index = table[index_name]
+        table = table.drop(columns=[index_name])
+    else:
+        index_priorities = ["time", "wavelength"]
+        for index_priority in index_priorities:
+            if index_priority in [
+                x.lower() for x in table.columns if isinstance(x, str)
+            ]:
+                index_column = [
+                    x for x in table.columns if x.lower() == index_priority
+                ][0]
+                table.index = table[index_column]
+                table = table.drop(columns=[index_column])
+                break
+    return table
+
 
 class SynergyParser(ExcelParser):
     """
@@ -232,9 +326,26 @@ class SynergyParser(ExcelParser):
     _well_column = "Plate Position"
 
     def parse(self, file: Union[str, BinaryIO]) -> ParsedData:
+        """
+        Parses the given Excel file and extracts metadata and sample data.
+        Parameters
+        ----------
+        file : Union[str, BinaryIO]
+
+            The path to the Excel file or a file-like object containing the Excel data.
+        Returns
+        -------
+        ParsedData
+
+            An object containing the extracted metadata and sample data.
+        Raises
+        ------
+        ValueError
+            If there is an issue with reading the Excel file or finding the required data.
+        """
         # file = "uv/data/UV serum.xlsx"
         try:
-            sheet = get_first_xlsx_worksheet(file)
+            sheet = self._get_first_xlsx_worksheet(file)
         except ValueError as e:
             raise ValueError(e) from e
         # split the sheet into tables separated by empty rows
@@ -263,49 +374,47 @@ class SynergyParser(ExcelParser):
             )
             .dropna(how="all")
             .dropna(how="all", axis=1)
-            .set_index(0)
             for i, (start_row, table_name) in enumerate(section_starts)
             if table_name != "Software Version"
         }
-        # TODO: ensure that the tables are oriented with wells as rows
-        table_indices = [
-            (table_name, table.index)
-            for table_name, table in tables.items()
-            if any(well_name in table.index for well_name in ["A1", "A01"])
-        ]
-        well_location = "A1"
-        kinetics = {
-            table_name: tables[table_name]
-            .loc[[table_index[0], well_location], :]
-            .values
-            for table_name, table_index in table_indices
-        }
 
-        list(tables.items())[-5]
-        plates = [
-            Plate(
-                id=plate,
-                wells=[
-                    Well(
-                        well_location=well["Plate Position"],
-                        row=well["row"],
-                        column=well["col"],
-                        sample=well["Sample name"],
-                        annotations={
-                            # return a list of tuples with the (first row value, row with matching )
-                            table_name: list(
-                                zip(
-                                    table.columns,
-                                    row,
-                                )
-                            )
-                        },
-                    )
-                    for _, well in plate_wells.iterrows()
-                ],
+        well_tables: Dict[str, pd.DataFrame] = {}
+        for table_name, table in tables.items():
+            try:
+                well_tables[table_name] = _create_well_table(table)
+            except ValueError:
+                pass
+            except TypeError:
+                pass
+
+        long_data = pd.concat(
+            [
+                pd.DataFrame(
+                    data=table.stack().reset_index().values,
+                    columns=["time", "well", "value"],
+                ).assign(measurement=table_name)
+                for table_name, table in well_tables.items()
+            ]
+        )
+
+        wells = [
+            Well(
+                well_location=well,
+                row=self._well_string_to_row(well),
+                column=self._well_string_to_col(well),
+                sample=None,
+                annotations=well_data.pivot(
+                    index="time", columns="measurement", values="value"
+                ).to_dict(orient="list"),
             )
-            for plate, plate_wells in plate_df.groupby("Plate ID")
+            for well, well_data in long_data.groupby("well")
+            if _is_well(well)
         ]
+
+        # Synergy only ever puts one plate per sheet. This is not currently designed for multi-plate parsing.
+        # Toward multiplate parsing, we would need to decide how to represent metadata that changes across plates
+        plates = [Plate(id=metadata["Plate Number"], wells=wells)]
+
         return ParsedData(
             metadata=metadata,
             plates=plates,
