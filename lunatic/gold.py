@@ -23,9 +23,10 @@ file_plate_pairings = {
     # "G0033966": "lunatic/data/2025-02-18_162550_401155_LUNA_Gold_Gen1_Batch1_Plate1.xlsx",  # The first plate
     # "G0033967": "lunatic/data/2025-02-18_164225_401155_LUNA_Gold_Gen1_Batch1_Plate2.xlsx",  # The second plate
     # "G0033968": "lunatic/data/2025-02-18_165551_401155_LUNA_Gold_Gen1_Batch1_Plate3.xlsx",  # The third plate
-    "G0034083": "lunatic/data/2025-02-19_160726_401155_LUNA_uBCA_Gold_Gen1_Batch2_Pla.xlsx",  # The first plate
-    "G0034084": "lunatic/data/2025-02-19_160920_401027_LUNA_uBCA_Gold_Gen1_Batch2_Pla.xlsx",
-    "G0034085": "lunatic/data/2025-02-19_162223_401155_LUNA_uBCA_Gold_Gen1_Batch2_Pla.xlsx",
+    # "G0034083": "lunatic/data/2025-02-19_160726_401155_LUNA_uBCA_Gold_Gen1_Batch2_Pla.xlsx",  # The first plate
+    # "G0034084": "lunatic/data/2025-02-19_160920_401027_LUNA_uBCA_Gold_Gen1_Batch2_Pla.xlsx",
+    # "G0034085": "lunatic/data/2025-02-19_162223_401155_LUNA_uBCA_Gold_Gen1_Batch2_Pla.xlsx",
+    "G0034198": "lunatic/data/2025-02-21_171258_401155_LUNA_2025-02-21_MicroBCA.xlsx"
 }
 
 
@@ -142,8 +143,11 @@ for i, (platemap_id, plate_data) in enumerate(calibration_data.groupby("platemap
     )
 axes.set_xlabel("Concentration (ug/mL)")
 axes.set_ylabel("Calculated Concentration (ug/mL)")
+axes.title(
+    f"Calibration Curve{"s" if len(calibration_data["platemap"].unique()) > 1 else ''}"
+)
 plt.legend()
-plt.savefig("lunatic/data/calibration_gen1_2.png")
+plt.savefig("lunatic/data/calibration_yang.png")
 
 
 analyzed_data = data.assign(
