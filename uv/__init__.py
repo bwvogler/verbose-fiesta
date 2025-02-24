@@ -396,6 +396,10 @@ class SynergyParser(ExcelParser):
                 for table_name, table in well_tables.items()
             ]
         )
+        # convert non-numeric values to NaN
+        long_data["value"] = pd.to_numeric(long_data["value"], errors="coerce")
+        # convert time to numeric values
+        long_data["time"] = pd.to_numeric(long_data["time"], errors="coerce")
 
         wells = [
             Well(
