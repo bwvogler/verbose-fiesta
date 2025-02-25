@@ -3,15 +3,17 @@ import numpy as np
 import pandas as pd
 import seaborn as sns
 import matplotlib.pyplot as plt
+from matplotlib.colors import ListedColormap
 from scipy.stats import linregress
+import scipy.special as sp
 
 import scipy.optimize as opt
-import scipy.special as sp
 
 
 from pyquorra.platemap import Platemap
 
 from uv import SynergyParser
+from util import PALETTE
 
 parser = SynergyParser()
 
@@ -56,7 +58,7 @@ def get_x_y_data(
             *[
                 (x, y)
                 for x, y in zip(df[x_col], df[y_col])
-                if isinstance(y, float) and not np.isnan(y)
+                if isinstance(y, float) and not np.isnan(y) and not np.isinf(y)
             ]
         )
     )
@@ -109,33 +111,40 @@ wells_df["calculatedconcentration"] = wells_df["Adjusted 292"].apply(
 wells_df["seconds"] = wells_df["time"].apply(lambda x: list(24 * 60 * 60 * np.array(x)))
 
 
-# Define the integrated Michaelis-Menten equation solved for S
+# Perform curve fitting
 def integrated_mm(t, Vmax, Km, S0):
     """Compute [S](t) using the Lambert W function solution to the integrated MM equation."""
     C = Vmax * t - S0 - Km * np.log(S0)
-    S_t = -Km * sp.lambertw(-np.exp(-C / Km), k=-1).real  # Ensure real part
+
+    # Ensure Lambert function is evaluated correctly
+    W_input = -np.exp(-C / Km)
+
+    # Prevent invalid values in W (should be between -1/e and 0)
+    W_input = np.clip(W_input, -1 / np.e, 0.0)
+
+    # Compute Lambert W function on the correct branch
+    S_t = -Km * sp.lambertw(W_input, k=-1).real  # Ensure real part
+
     return S_t
-
-
-# Perform curve fitting
 
 
 def smooth_approximation(t, S0, Sinf, k):
     return Sinf + (S0 - Sinf) * np.exp(-k * t)
 
 
-well_df = wells_df.iloc[0]  # 115]
-# popt, pcov = opt.curve_fit(
-#     integrated_mm,
-#     *get_x_y_data(well_df, "seconds", "calculatedconcentration", slice(0, 25)),
-#     p0=[1.0, 30.0, 300.0],
-#     bounds=([0, 0, 0], [np.inf, np.inf, 500])
-# )
-popt, pcov = opt.curve_fit(
+def smooth_approximation_derivative(t, S0, Sinf, k):
+    return -k * (S0 - Sinf) * np.exp(-k * t)
+
+
+well_df = wells_df.iloc[0]  # 218]  # 115]
+well_df = wells_df.iloc[218]  # 115]
+well_df = wells_df.iloc[115]
+
+popt, pcov = opt.curve_fit(  # pylint:disable=unbalanced-tuple-unpacking
     smooth_approximation,
     *get_x_y_data(well_df, "seconds", "Adjusted 292"),
-    p0=[max(well_df["Adjusted 292"]), min(well_df["Adjusted 292"]), 0.1],
-    bounds=([0, 0, 0], [np.inf, np.inf, 500])
+    p0=[max(well_df["Adjusted 292"]), min(well_df["Adjusted 292"]), 0.00001],
+    bounds=([0, 0, 0], [5, 5, 1]),
 )
 # plot a fit
 x = np.linspace(min(well_df["seconds"]), max(well_df["seconds"]), 100)
@@ -146,52 +155,117 @@ plt.scatter(
     *get_x_y_data(well_df, "seconds", "Adjusted 292"), label="Data"  # , slice(0, 25)),
 )
 plt.show()
-# plt.close()
 
+well_df = wells_df.iloc[218]  # 115]
+wells_df["popt"] = [
+    opt.curve_fit(
+        smooth_approximation,
+        *get_x_y_data(well_df, "seconds", "Adjusted 292"),
+        p0=[max(well_df["Adjusted 292"]), min(well_df["Adjusted 292"]), 0.00001],
+        bounds=([0, 0, 0], [5, 5, 1]),
+    )[0]
+    # opt.curve_fit(
+    #     integrated_mm,
+    #     *get_x_y_data(well_df, "seconds", "Adjusted 292"),
+    #     p0=[0.001, 50.0, 0.00001],
+    #     bounds=([0, 0, 0], [5, 500, 10]),
+    # )[0]
+    for well_df in wells_df.iloc()
+]
 
-def get_dy_data(row: pd.Series, x_col: str, y_col: str) -> list[float]:
-    """Get the derivative of the y data. With respect to x. Return dY with the same length as x and spaced as y."""
-    dy = [np.nan]
-    last_x_y: Tuple[float, float] = (np.nan, np.nan)
-    for x, y in zip(row[x_col], row[y_col]):
-        if isinstance(y, float) and not np.isnan(y):
-            if last_x_y != (np.nan, np.nan):
-                dy.append((y - last_x_y[1]) / (x - last_x_y[0]))
-            last_x_y = (x, y)
-        else:
-            dy.append(np.nan)
-    return dy
+wells_df["max_d Adjusted 292"] = [
+    smooth_approximation_derivative(
+        0,
+        *list(
+            opt.curve_fit(
+                smooth_approximation,
+                *get_x_y_data(well_df, "seconds", "Adjusted 292"),
+                p0=[
+                    max(well_df["Adjusted 292"]),
+                    min(well_df["Adjusted 292"]),
+                    0.00001,
+                ],
+                bounds=([0, 0, 0], [5, 5, 1]),
+            )[0]
+        ),
+    )
+    for well_df in wells_df.iloc()
+]
 
+wells_df["Vmax"] = wells_df["max_d Adjusted 292"] / standard_curve.slope
 
-wells_df["d Adjusted 292"] = wells_df.apply(
-    lambda row: get_dy_data(row, "seconds", "Adjusted 292"), axis=1
+# investigate limit of quantification
+negative_df = wells_df[
+    (wells_df["enzymeconcentration"] == 0) & (wells_df["control"] == "standard")
+]
+
+mean_Vmax = negative_df["Vmax"].mean()
+std_Vmax = negative_df["Vmax"].std()
+lod = mean_Vmax - 3 * std_Vmax
+
+# calculate the Vmax for each enzymeconcentration
+rough_data = (
+    wells_df.groupby("enzymeconcentration")
+    .aggregate(
+        {
+            "Vmax": ["mean", "std"],
+        }
+    )
+    .reset_index()
 )
 
-wells_df["d calculatedconcentration"] = wells_df["d Adjusted 292"].apply(
-    lambda x: np.array(x) / standard_curve.slope
+rough_data["enzymenm"] = 1000 * rough_data["enzymeconcentration"] / 5 / 35
+rough_data["kcat"]
+
+# plot curves for each enzyme concentration
+x = np.linspace(0, max(x for y in wells_df["seconds"] for x in y), 100)
+long_data = pd.concat(
+    [
+        pd.DataFrame(
+            data=np.array(get_x_y_data(well_df, "seconds", "Adjusted 292")).T,
+            columns=["seconds", "Adjusted 292"],
+        ).assign(
+            enzymeconcentration=well_df["enzymeconcentration"],
+            well=well_df["well_location"],
+            smooth=lambda x, well_df=well_df: smooth_approximation(
+                x["seconds"], *well_df["popt"]
+            ),
+        )
+        for well_df in wells_df.iloc()
+        if well_df["enzymeconcentration"] > 0
+    ]
 )
 
-
-def mm_deriv(t, Vmax, Km, S0):
-    """Compute d[S](t)/dt using the Lambert W function solution to the integrated MM equation."""
-    C = Vmax * t - S0 - Km * np.log(S0)
-    dS_dt = -Vmax / (1 + S0 / Km) * np.exp(-C / Km)
-    return dS_dt
-
-
-popt, pcov = opt.curve_fit(
-    mm_deriv,
-    *get_x_y_data(well_df, "seconds", "d calculatedconcentration", slice(0, 25)),
-    p0=[1.0, 30.0, 300.0],
-    bounds=([0, 0, 0], [np.inf, np.inf, 500])
+sns.scatterplot(
+    data=long_data,
+    x="seconds",
+    y="Adjusted 292",
+    hue="enzymeconcentration",
+    palette=PALETTE,
 )
-# plot a fit
-x = np.linspace(min(well_df["seconds"]), max(well_df["seconds"]), 100)
-y = mm_deriv(x, *popt)
-plt.plot(x, y, label="Fitted curve")
-plt.scatter(
-    *get_x_y_data(well_df, "seconds", "d calculatedconcentration", slice(0, 25)),
-    label="Data"
+sns.lineplot(
+    data=long_data,
+    x="seconds",
+    y="smooth",
+    hue="enzymeconcentration",
+    legend=False,
+    palette=PALETTE,
 )
 plt.show()
-plt.close()
+
+# look for trends in error
+long_data["error"] = long_data["Adjusted 292"] - long_data["smooth"]
+long_data[
+    long_data["enzymeconcentration"].isin(
+        list(long_data["enzymeconcentration"].unique())[:3]
+    )
+].plot(
+    x="seconds",
+    y="error",
+    kind="scatter",
+    marker="o",
+    c="enzymeconcentration",
+    s=3,
+    cmap=ListedColormap(PALETTE),
+)
+plt.show()
